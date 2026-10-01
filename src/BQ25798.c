@@ -237,6 +237,11 @@ bq25798_result_t bq25798_kick_watchdog(bq25798_t *device){
 	return bq25798_write_u8(device, 0x10U, (uint8_t)(control | 0x08U));
 }
 
+bq25798_result_t bq25798_set_watchdog_charge_stop(bq25798_t *device, bool enabled){
+	// Otherwise watchdog expiration would retain EN_CHG
+	return bq25798_update_control(device, 0x09U, 0x60U, enabled ? 0x20U : 0U, 0xBFU);
+}
+
 bq25798_result_t bq25798_set_ibat_discharge_sensing(bq25798_t *device, bool enabled){
 	return bq25798_update_control(device, 0x14U, 0x20U, enabled ? 0x20U : 0U, 0xBFU);
 }

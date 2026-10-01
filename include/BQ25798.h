@@ -206,6 +206,7 @@ bq25798_result_t bq25798_read_configuration(bq25798_t *device, bq25798_configura
 bq25798_result_t bq25798_set_write_callback(bq25798_t *device, bq25798_write_fn write);
 bq25798_result_t bq25798_set_watchdog(bq25798_t *device, uint8_t code);
 bq25798_result_t bq25798_kick_watchdog(bq25798_t *device);
+bq25798_result_t bq25798_set_watchdog_charge_stop(bq25798_t *device, bool enabled);
 bq25798_result_t bq25798_set_ibat_discharge_sensing(bq25798_t *device, bool enabled);
 
 bq25798_result_t bq25798_set_charge_voltage(bq25798_t *device, uint16_t mv);
