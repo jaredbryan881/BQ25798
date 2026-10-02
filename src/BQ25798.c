@@ -11,6 +11,18 @@ static int32_t bq25798_read_i16_be(const uint8_t *data){
 	return (value & 0x8000U) != 0U ? (int32_t)value - 65536 : (int32_t)value;
 }
 
+static uint32_t bq25798_pack_u32_le(const uint8_t *data){
+	return ((uint32_t)data[0]) |
+		   ((uint32_t)data[1] << 8U) |
+		   ((uint32_t)data[2] << 16U) |
+		   ((uint32_t)data[3] << 24U);
+}
+
+static uint16_t bq25798_pack_u16_le(const uint8_t *data){
+	return (uint16_t)(((uint16_t)data[0]) |
+					  ((uint16_t)data[1] << 8U));
+}
+
 static bq25798_result_t bq25798_read(bq25798_t *device, uint8_t reg, uint8_t *data, uint16_t length){
 	if(device == NULL || device->read == NULL || data == NULL){
 		return BQ25798_NULL_ARGUMENT;
@@ -110,6 +122,7 @@ bq25798_result_t bq25798_read_identity(bq25798_t *device, bq25798_identity_t *id
 	return identity->part_number == BQ25798_PART_NUMBER ? BQ25798_OK : BQ25798_WRONG_DEVICE;
 }
 
+// Read the current condition of the charger from REG1B-REG21 (does not clear these flags)
 bq25798_result_t bq25798_read_status(bq25798_t *device, bq25798_status_t *status){
 	bq25798_status_t decoded = {0};
 	if(status == NULL){ 
@@ -866,6 +879,87 @@ bq25798_result_t bq25798_adc_read(bq25798_t *device, bq25798_adc_t *telemetry){
 	if(one_shot){
 		device->adc_one_shot_pending = false;
 	}
+	
+	return BQ25798_OK;
+}
+
+// Interrupts and events
+bq25798_result_t bq25798_set_interrupt_masks(bq25798_t *device, uint32_t charger_masks, uint16_t fault_masks){
+	const uint32_t valid_charger = UINT32_C(0x1F7FD7FF);
+	const uint16_t valid_fault = UINT16_C(0xF4FF);
+	uint8_t wanted[6], actual[6];
+	if(((charger_masks & ~valid_charger) != 0U) || ((fault_masks & (uint16_t)~valid_fault) != 0U)){
+		return BQ25798_INVALID_ARGUMENT;
+	}
+	
+	if((device == NULL) || (device->read == NULL)){
+		return BQ25798_NULL_ARGUMENT;
+	}
+	
+	if(device->write == NULL){
+		return BQ25798_WRITE_NOT_AVAILABLE;
+	}
+	
+	wanted[0] = (uint8_t)charger_masks;
+	wanted[1] = (uint8_t)(charger_masks >> 8U);
+	wanted[2] = (uint8_t)(charger_masks >> 16U);
+	wanted[3] = (uint8_t)(charger_masks >> 24U);
+	wanted[4] = (uint8_t)fault_masks;
+	wanted[5] = (uint8_t)(fault_masks >> 8U);
+	
+	device->last_io_error = device->write(device->context, BQ25798_I2C_ADDRESS, BQ25798_REG_CHARGER_MASK_0, wanted, sizeof(wanted));
+	if(device->last_io_error != 0){
+		return BQ25798_IO_ERROR;
+	}
+	
+	bq25798_result_t result = bq25798_read(device, BQ25798_REG_CHARGER_MASK_0, actual, sizeof(actual));
+	if(result != BQ25798_OK){
+		return result;
+	}
+	
+	for(uint8_t i = 0U; i < sizeof(wanted); i++){
+		if(actual[i] != wanted[i]){
+			return BQ25798_VERIFY_FAILED;
+		}
+	}
+
+	return BQ25798_OK;
+}
+
+// Read event flags from REG22-REG27. Unlike read_status, those flags are cleared by the read.
+bq25798_result_t bq25798_read_events(bq25798_t *device, bq25798_events_t *events){ bq25798_events_t decoded = {0};
+	if(events == NULL){
+		return BQ25798_NULL_ARGUMENT;
+	}
+	// read all six latched flag registers
+	bq25798_result_t result = bq25798_read(device, BQ25798_REG_CHARGER_FLAG_0, decoded.raw, sizeof(decoded.raw));
+	if(result != BQ25798_OK){
+		return result;
+	}
+	
+	decoded.charger = bq25798_pack_u32_le(decoded.raw);
+	decoded.fault = bq25798_pack_u16_le(&decoded.raw[4]);
+	decoded.any_fault = (decoded.fault != 0U);
+	decoded.any = (decoded.charger != 0U) || decoded.any_fault;
+	*events = decoded;
+
+	return BQ25798_OK;
+}
+
+bq25798_result_t bq25798_read_interrupt_masks(bq25798_t *device, bq25798_interrupt_masks_t *masks){
+	bq25798_interrupt_masks_t decoded = {0};
+	if(masks == NULL){
+		return BQ25798_NULL_ARGUMENT;
+	}
+
+	bq25798_result_t result = bq25798_read(device, BQ25798_REG_CHARGER_MASK_0, decoded.raw, sizeof(decoded.raw));
+	if(result != BQ25798_OK){
+		return result;
+	}
+	
+	decoded.charger = bq25798_pack_u32_le(decoded.raw);
+	decoded.fault = bq25798_pack_u16_le(&decoded.raw[4]);
+	*masks = decoded;
 	
 	return BQ25798_OK;
 }
