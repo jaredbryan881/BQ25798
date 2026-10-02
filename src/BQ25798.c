@@ -255,6 +255,37 @@ bq25798_result_t bq25798_set_watchdog_charge_stop(bq25798_t *device, bool enable
 	return bq25798_update_control(device, 0x09U, 0x60U, enabled ? 0x20U : 0U, 0xBFU);
 }
 
+bq25798_result_t bq25798_invalidate_adc_state(bq25798_t *device){
+	if(device == NULL){
+		return BQ25798_NULL_ARGUMENT;
+	}
+
+	device->adc_configured = false;
+	device->adc_one_shot_pending = false;
+	
+	return BQ25798_OK;
+}
+
+bq25798_result_t bq25798_reset_registers(bq25798_t *device){
+	uint8_t control;
+	if((device == NULL) || (device->read == NULL)){
+		return BQ25798_NULL_ARGUMENT;
+	}
+	
+	if(device->write == NULL){
+		return BQ25798_WRITE_NOT_AVAILABLE;
+	}
+	
+	bq25798_result_t result = bq25798_read_u8(device, 0x09U, &control);
+	if(result != BQ25798_OK){
+		return result;
+	}
+
+	(void)bq25798_invalidate_adc_state(device);
+
+	return bq25798_write_u8(device, 0x09U, (uint8_t)(control | 0x40U));
+}
+
 bq25798_result_t bq25798_set_ibat_discharge_sensing(bq25798_t *device, bool enabled){
 	return bq25798_update_control(device, 0x14U, 0x20U, enabled ? 0x20U : 0U, 0xBFU);
 }

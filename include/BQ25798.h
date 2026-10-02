@@ -295,11 +295,13 @@ bq25798_result_t bq25798_adc_read_configuration(bq25798_t *device, bq25798_adc_c
 bq25798_result_t bq25798_adc_start_one_shot(bq25798_t *device);
 bq25798_result_t bq25798_adc_disable(bq25798_t *device);
 bq25798_result_t bq25798_adc_read(bq25798_t *device, bq25798_adc_t *telemetry);
+bq25798_result_t bq25798_invalidate_adc_state(bq25798_t *device);
 
 // Event and interrupt control
 bq25798_result_t bq25798_read_events(bq25798_t *device, bq25798_events_t *events);
 bq25798_result_t bq25798_read_interrupt_masks(bq25798_t *device, bq25798_interrupt_masks_t *masks);
 bq25798_result_t bq25798_set_interrupt_masks(bq25798_t *device, uint32_t charger_masks, uint16_t fault_masks);
+bq25798_result_t bq25798_reset_registers(bq25798_t *device);
 
 #ifdef __cplusplus
 }
