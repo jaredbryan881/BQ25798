@@ -230,6 +230,111 @@ bq25798_result_t bq25798_set_write_callback(bq25798_t *device, bq25798_write_fn 
 	return BQ25798_OK;
 }
 
+bq25798_result_t bq25798_mppt_read_configuration(bq25798_t *device, bq25798_mppt_configuration_t *configuration){
+	if(configuration == NULL){
+		return BQ25798_NULL_ARGUMENT;
+	}
+	
+	uint8_t raw;
+	
+	bq25798_result_t result = bq25798_read_u8(device, 0x15U, &raw);
+	if(result != BQ25798_OK){
+		return result;
+	}
+
+	static const uint16_t delays[] = {50U, 300U, 2000U, 5000U};
+	static const uint16_t intervals[] = {30U, 120U, 600U, 1800U};
+	bq25798_mppt_configuration_t decoded = {0};
+	decoded.raw = raw;
+	decoded.settings.ratio = (bq25798_mppt_ratio_t)(raw >> 5U);
+	decoded.settings.delay = (bq25798_mppt_delay_t)((raw >> 3U) & 3U);
+	decoded.settings.interval = (bq25798_mppt_interval_t)((raw >> 1U) & 3U);
+	decoded.ratio_basis_points = (uint16_t)(5625U + (raw >> 5U) * 625U);
+	decoded.sample_delay_ms = delays[(raw >> 3U) & 3U];
+	decoded.sample_interval_seconds = intervals[(raw >> 1U) & 3U];
+	decoded.enabled = (raw & 1U) != 0U;
+	*configuration = decoded;
+
+	return BQ25798_OK;
+}
+
+bq25798_result_t bq25798_mppt_configure(bq25798_t *device, const bq25798_mppt_settings_t *settings){
+	if((settings == NULL) || (device == NULL) || (device->read == NULL)){
+		return BQ25798_NULL_ARGUMENT;
+	}
+
+	if(((uint32_t)settings->ratio > 7U) || 
+		((uint32_t)settings->delay > 3U) ||
+		((uint32_t)settings->interval > 3U)){
+		return BQ25798_INVALID_ARGUMENT;
+	}
+	
+	if(device->write == NULL){
+		return BQ25798_WRITE_NOT_AVAILABLE;
+	}
+	
+	uint8_t current;
+	bq25798_result_t result = bq25798_read_u8(device, 0x15U, &current);
+	if(result != BQ25798_OK){
+		return result;
+	}
+
+	if(current & 1U){
+		return BQ25798_BUSY;
+	}
+	
+	uint8_t wanted = (uint8_t)(((uint8_t)settings->ratio << 5U) |
+							   ((uint8_t)settings->delay << 3U) | 
+							   ((uint8_t)settings->interval << 1U));
+	
+	return bq25798_update_control(device, 0x15U, 0xFFU, wanted, 0xFFU);
+}
+
+bq25798_result_t bq25798_mppt_set_enabled(bq25798_t *device, bool enabled){
+	if((device == NULL) || (device->read == NULL)){
+		return BQ25798_NULL_ARGUMENT;
+	}
+	
+	if(device->write == NULL){
+		return BQ25798_WRITE_NOT_AVAILABLE;
+	}
+	
+	if(enabled){
+		uint8_t control0, control3;
+		bq25798_configuration_t config;
+		bq25798_status_t status;
+		bq25798_result_t result = bq25798_read_configuration(device, &config);
+		
+		if(result != BQ25798_OK){
+			return result;
+		}
+		
+		control0 = config.raw[0x0F]; control3 = config.raw[0x13];
+		if((control0 & 0x18U) || (control3 & 0x02U)){
+			return BQ25798_BUSY;
+		}
+		
+		if(config.high_impedance || (control0 & 1U) || (config.raw[0x12] & 0xC0U)){
+			return BQ25798_INVALID_ARGUMENT;
+		}
+
+		result = bq25798_read_status(device, &status);
+		if(result != BQ25798_OK){
+			return result;
+		}
+		
+		if (!status.power_good || 
+			!status.vbus_present ||
+			status.minimum_system_regulation || 
+			status.protection_active ||
+			status.watchdog_expired){
+			return BQ25798_NOT_READY;
+		}
+	}
+
+	return bq25798_update_control(device, 0x15U, 1U, enabled ? 1U : 0U, 0xFFU);
+}
+
 // Set how long the good boy watis before barking
 bq25798_result_t bq25798_set_watchdog(bq25798_t *device, uint8_t code){
 	if(code > 7U){

@@ -201,6 +201,47 @@ typedef struct {
 	bool charging_enabled;
 } bq25798_charge_profile_t;
 
+// MPPT
+typedef enum {
+	BQ25798_MPPT_RATIO_56_25_PERCENT = 0,
+	BQ25798_MPPT_RATIO_62_50_PERCENT,
+	BQ25798_MPPT_RATIO_68_75_PERCENT,
+	BQ25798_MPPT_RATIO_75_00_PERCENT,
+	BQ25798_MPPT_RATIO_81_25_PERCENT,
+	BQ25798_MPPT_RATIO_87_50_PERCENT,
+	BQ25798_MPPT_RATIO_93_75_PERCENT,
+	BQ25798_MPPT_RATIO_100_00_PERCENT
+} bq25798_mppt_ratio_t;
+
+typedef enum {
+	BQ25798_MPPT_DELAY_50_MS = 0,
+	BQ25798_MPPT_DELAY_300_MS,
+	BQ25798_MPPT_DELAY_2_SECONDS,
+	BQ25798_MPPT_DELAY_5_SECONDS
+} bq25798_mppt_delay_t;
+
+typedef enum {
+	BQ25798_MPPT_INTERVAL_30_SECONDS = 0,
+	BQ25798_MPPT_INTERVAL_2_MINUTES,
+	BQ25798_MPPT_INTERVAL_10_MINUTES,
+	BQ25798_MPPT_INTERVAL_30_MINUTES
+} bq25798_mppt_interval_t;
+
+typedef struct {
+	bq25798_mppt_ratio_t ratio;
+	bq25798_mppt_delay_t delay;
+	bq25798_mppt_interval_t interval;
+} bq25798_mppt_settings_t;
+
+typedef struct {
+	uint8_t raw; 
+	bq25798_mppt_settings_t settings;
+	uint16_t ratio_basis_points;
+	uint16_t sample_delay_ms;
+	uint16_t sample_interval_seconds;
+	bool enabled;
+} bq25798_mppt_configuration_t;
+
 typedef enum { 
 	BQ25798_ADC_CONTINUOUS = 0,
 	BQ25798_ADC_ONE_SHOT = 1
@@ -288,6 +329,11 @@ bq25798_result_t bq25798_set_charge_timers(bq25798_t *device, const bq25798_char
 bq25798_result_t bq25798_validate_charge_profile(const bq25798_charge_profile_t *profile);
 bq25798_result_t bq25798_apply_charge_profile(bq25798_t *device, const bq25798_charge_profile_t *profile);
 bq25798_result_t bq25798_set_ibat_discharge_sensing(bq25798_t *device, bool enabled);
+
+// MPPT control
+bq25798_result_t bq25798_mppt_configure(bq25798_t *device, const bq25798_mppt_settings_t *settings);
+bq25798_result_t bq25798_mppt_read_configuration(bq25798_t *device, bq25798_mppt_configuration_t *configuration);
+bq25798_result_t bq25798_mppt_set_enabled(bq25798_t *device, bool enabled);
 
 // ADC control
 bq25798_result_t bq25798_adc_configure(bq25798_t *device, bq25798_adc_mode_t mode, bq25798_adc_resolution_t resolution, uint16_t channels);
