@@ -538,6 +538,14 @@ bq25798_result_t bq25798_set_termination_enabled(bq25798_t *device, bool enabled
 	return bq25798_update_charger_control(device, 0x02U, enabled);
 }
 
+bq25798_result_t bq25798_set_high_impedance(bq25798_t *device, bool enabled){
+	return bq25798_update_charger_control(device, 0x04U, enabled);
+}
+
+bq25798_result_t bq25798_set_forward_pfm_enabled(bq25798_t *device, bool enabled){
+	return bq25798_update_control(device, 0x12U, 0x10U, enabled ? 0U : 0x10U, 0xFFU);
+}
+
 bq25798_result_t bq25798_set_ico_enabled(bq25798_t *device, bool enabled){
 	return bq25798_update_charger_control(device, 0x10U, enabled);
 }

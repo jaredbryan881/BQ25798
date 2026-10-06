@@ -323,6 +323,8 @@ bq25798_result_t bq25798_set_termination_current(bq25798_t *device, uint16_t ma)
 bq25798_result_t bq25798_set_recharge(bq25798_t *device, uint16_t offset_mv, uint8_t deglitch_code);
 bq25798_result_t bq25798_set_charging_enabled(bq25798_t *device, bool enabled);
 bq25798_result_t bq25798_set_termination_enabled(bq25798_t *device, bool enabled);
+bq25798_result_t bq25798_set_high_impedance(bq25798_t *device, bool enabled);
+bq25798_result_t bq25798_set_forward_pfm_enabled(bq25798_t *device, bool enabled);
 bq25798_result_t bq25798_set_ico_enabled(bq25798_t *device, bool enabled);
 bq25798_result_t bq25798_set_input_current_limit_enabled(bq25798_t *device, bool enabled);
 bq25798_result_t bq25798_set_charge_timers(bq25798_t *device, const bq25798_charge_timers_t *timers);
