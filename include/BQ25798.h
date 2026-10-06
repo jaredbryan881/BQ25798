@@ -296,6 +296,22 @@ typedef struct {
 	uint16_t fault;
 } bq25798_interrupt_masks_t;
 
+// SDRV_CTRL register codes
+typedef enum {
+	BQ25798_SHIP_FET_IDLE = 0,
+	BQ25798_SHIP_FET_SHUTDOWN = 1,
+	BQ25798_SHIP_FET_SHIP = 2,
+	BQ25798_SHIP_FET_RESET = 3
+} bq25798_ship_mode_t;
+
+typedef struct {
+	uint8_t raw_reg11, raw_reg12, raw_reg14;
+	bq25798_ship_mode_t mode;
+	bool ship_fet_present;
+	bool entry_delay_enabled; // true=10s, false=immediate
+	bool short_qon_wake;      // true=15ms, false=1s, nominal
+} bq25798_ship_configuration_t;
+
 // Initialize the driver (does not actually initialize the charger)
 bq25798_result_t bq25798_init(bq25798_t *device, bq25798_read_fn read, void *context);
 
@@ -306,6 +322,14 @@ bq25798_result_t bq25798_read_identity(bq25798_t *device, bq25798_identity_t *id
 bq25798_result_t bq25798_read_status(bq25798_t *device, bq25798_status_t *status);
 bq25798_result_t bq25798_read_configuration(bq25798_t *device, bq25798_configuration_t *configuration);
 bq25798_result_t bq25798_set_write_callback(bq25798_t *device, bq25798_write_fn write);
+
+// Ship and shutdown mode control
+bq25798_result_t bq25798_read_ship_configuration(bq25798_t *device, bq25798_ship_configuration_t *configuration);
+bq25798_result_t bq25798_set_ship_fet_present(bq25798_t *device, bool present);
+bq25798_result_t bq25798_set_ship_entry_delay(bq25798_t *device, bool enabled);
+bq25798_result_t bq25798_set_qon_wake_delay(bq25798_t *device, bool short_wake);
+bq25798_result_t bq25798_enter_ship_mode(bq25798_t *device);
+bq25798_result_t bq25798_enter_shutdown_mode(bq25798_t *device);
 
 // Watchdog control
 bq25798_result_t bq25798_set_watchdog(bq25798_t *device, uint8_t code);

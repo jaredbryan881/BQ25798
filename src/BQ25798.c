@@ -230,6 +230,137 @@ bq25798_result_t bq25798_set_write_callback(bq25798_t *device, bq25798_write_fn 
 	return BQ25798_OK;
 }
 
+bq25798_result_t bq25798_read_ship_configuration(bq25798_t *device, bq25798_ship_configuration_t *configuration){
+	bq25798_ship_configuration_t decoded = {0};
+	if(configuration == NULL){
+		return BQ25798_NULL_ARGUMENT;
+	}
+
+	bq25798_result_t result = bq25798_read_u8(device, 0x11U, &decoded.raw_reg11);
+	if(result != BQ25798_OK){
+		return result;
+	}
+
+	result = bq25798_read_u8(device, 0x12U, &decoded.raw_reg12);
+	if(result != BQ25798_OK){
+		return result;
+	}
+
+	result = bq25798_read_u8(device, 0x14U, &decoded.raw_reg14);
+	if(result != BQ25798_OK){
+		return result;
+	}
+
+	decoded.mode = (bq25798_ship_mode_t)((decoded.raw_reg11 >> 1U) & 3U);
+	decoded.ship_fet_present = (decoded.raw_reg14 & 0x80U) != 0U;
+	decoded.entry_delay_enabled = (decoded.raw_reg11 & 1U) == 0U;
+	decoded.short_qon_wake = (decoded.raw_reg12 & 8U) != 0U;
+	*configuration = decoded;
+	
+	return BQ25798_OK;
+}
+
+// Never replay a pending SDRV command while changing an ordinary setting.
+static bq25798_result_t bq25798_ship_require_idle(bq25798_t *device){
+	uint8_t control;
+	bq25798_result_t result = bq25798_read_u8(device, 0x11U, &control);
+	if(result != BQ25798_OK){
+		return result;
+	}
+
+	return (control & 6U) == 0U ? BQ25798_OK : BQ25798_BUSY;
+}
+
+bq25798_result_t bq25798_set_ship_fet_present(bq25798_t *device, bool present){
+	bq25798_result_t result = bq25798_ship_require_idle(device);
+	if(result != BQ25798_OK){
+		return result;
+	}
+
+	return bq25798_update_control(device, 0x14U, 0x80U, present ? 0x80U : 0U, 0xBFU);
+}
+
+bq25798_result_t bq25798_set_ship_entry_delay(bq25798_t *device, bool enabled){
+	bq25798_result_t result = bq25798_ship_require_idle(device);
+	if(result != BQ25798_OK){
+		return result;
+	}
+
+	return bq25798_update_control(device, 0x11U, 0x81U, enabled ? 0U : 1U, 0x7FU);
+}
+
+bq25798_result_t bq25798_set_qon_wake_delay(bq25798_t *device, bool short_wake){
+	bq25798_result_t result = bq25798_ship_require_idle(device);
+	if(result != BQ25798_OK){
+		return result;
+	}
+
+	return bq25798_update_control(device, 0x12U, 8U, short_wake ? 8U : 0U, 0xFFU);
+}
+
+static bq25798_result_t bq25798_enter_storage(bq25798_t *device, bq25798_ship_mode_t mode){
+	bq25798_configuration_t config;
+	bq25798_status_t status;
+	uint8_t adc_control;
+
+	if(device == NULL || device->read == NULL){
+		return BQ25798_NULL_ARGUMENT;
+	}
+
+	if(device->write == NULL){
+		return BQ25798_WRITE_NOT_AVAILABLE;
+	}
+
+	bq25798_result_t result = bq25798_read_configuration(device, &config);
+	if(result != BQ25798_OK){
+		return result;
+	}
+
+	if((config.raw[0x14] & 0x80U) == 0U){
+		return BQ25798_NOT_CONFIGURED;
+	}
+
+	if(config.raw[0x11] & 6U){
+		return BQ25798_BUSY;
+	}
+
+	result = bq25798_read_status(device, &status);
+	if(result != BQ25798_OK){
+		return result;
+	}
+
+	if(status.ac1_present || status.ac2_present || status.vbus_present || status.power_good){
+		return BQ25798_NOT_READY;
+	}
+
+	if(config.charging_enabled || (config.raw[0x0F] & 1U) ||
+		(config.raw[0x12] & 0x40U) || (config.raw[0x15] & 1U) ||
+		(config.raw[0x10] & 7U) || (config.raw[0x14] & 0x20U)){
+		return BQ25798_NOT_READY;
+	}
+
+	result = bq25798_read_u8(device, 0x2EU, &adc_control);
+	if(result != BQ25798_OK){
+		return result;
+	}
+
+	if(adc_control & 0x80U){
+		return BQ25798_NOT_READY;
+	}
+
+	(void)bq25798_invalidate_adc_state(device);
+
+	return bq25798_write_u8(device, 0x11U, (uint8_t)((config.raw[0x11] & 0x79U) | ((uint8_t)mode << 1U)));
+}
+
+bq25798_result_t bq25798_enter_ship_mode(bq25798_t *device){
+	return bq25798_enter_storage(device, BQ25798_SHIP_FET_SHIP);
+}
+
+bq25798_result_t bq25798_enter_shutdown_mode(bq25798_t *device){
+	return bq25798_enter_storage(device, BQ25798_SHIP_FET_SHUTDOWN);
+}
+
 bq25798_result_t bq25798_mppt_read_configuration(bq25798_t *device, bq25798_mppt_configuration_t *configuration){
 	if(configuration == NULL){
 		return BQ25798_NULL_ARGUMENT;
